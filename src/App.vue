@@ -36,6 +36,7 @@
                         <div class="mt-1 relative rounded-md shadow-md">
                             <input
                                     v-model="ticker"
+                                    @keyup="modifyTicker"
                                     @keydown.enter="add"
                                     type="text"
                                     name="wallet"
@@ -45,20 +46,19 @@
                             />
                         </div>
                         <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
-            <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-              BTC
-            </span>
-                            <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-              DOGE
-            </span>
-                            <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-              BCH
-            </span>
-                            <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-              CHD
-            </span>
+
+                            <div v-if="hints.length">
+                                <span
+                                        v-for="hint in hints" :key="hint"
+                                        @click="addHint(hint)"
+                                        class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
+                                 {{ hint }}
+                                </span>
+                            </div>
+
+
                         </div>
-                        <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
+                        <div v-if="tickerError" class="text-sm text-red-600">{{tickerErrorText}}</div>
                     </div>
                 </div>
                 <button
@@ -128,41 +128,7 @@
                         Удалить
                     </button>
                 </div>
-                <!--
-                                <div
-                                        class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid border-4 cursor-pointer"
-                                >
-                                    <div class="px-4 py-5 sm:p-6 text-center">
-                                        <dt class="text-sm font-medium text-gray-500 truncate">
-                                            VUE - RUB
-                                        </dt>
-                                        <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                                            80000.00
-                                        </dd>
-                                    </div>
-                                    <div class="w-full border-t border-gray-200"></div>
-                                    <button
-                                            class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
-                                    >
-                                        <svg
-                                                class="h-5 w-5"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 20 20"
-                                                fill="#718096"
-                                                aria-hidden="true"
-                                        >
-                                            <path
-                                                    fill-rule="evenodd"
-                                                    d="M9 2a1 1 0 00-.894.553L7.382 4 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                                    clip-rule="evenodd"
-                                            ></path>
-                                        </svg>
-                                        Удалить
-                                    </button>
-                                </div>
 
-
-                                -->
             </dl>
             <hr v-if="tickers.length" class="w-full border-t border-gray-600 my-4"/>
 
@@ -218,42 +184,82 @@
         name: "App",
         data() {
             return {
-                ticker: "BTC",
+                ticker: "",
+                tickerError: false,
+                tickerErrorText: 'Такой тикер уже добавлен',
+                hints: [],
                 tickers: [],
                 graph: [],
                 sel: null,
-                updateInterval: 3000
+                updateInterval: 3000,
+                coinList: []
             }
         },
         methods: {
-            add() {
-                const currentTicker = {
-                    name: this.ticker,
-                    price: 0.0
-                }
+            checkInputValue(inputValue, correctValues) {
+                const possibleValues = [];
 
-                this.tickers.push(currentTicker);
+                correctValues.forEach((value) => {
+                    if (value.includes(inputValue.toUpperCase())) {
+                        // console.log('value - ' + value)
+                        // console.log('inputValue - ' + inputValue)
+                        possibleValues.push(value);
+                    }
+                });
+                console.log(possibleValues)
+                return possibleValues.slice(0, 4);
+            },
+
+            subscribeToTicker (tickerName) {
                 setInterval(async () => {
-                    const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD,JPY,EUR&api_key=7e4a355b561faf0d20cf46b3338fa26dbbd12e779d8a16b0ed3e27c3a5cc21c4`)
+                    const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD,JPY,EUR&api_key=7e4a355b561faf0d20cf46b3338fa26dbbd12e779d8a16b0ed3e27c3a5cc21c4`)
                     const data = await f.json();
-                    // currentTicker.price = data.USD;
-                    this.tickers.find(t => t.name === currentTicker.name)
+                    this.tickers.find(t => t.name === tickerName)
                         .price = data.USD > 1 ? data.USD.toFixed(3) : data.USD.toPrecision(3);
 
-                   if (this.sel?.name === currentTicker.name) {
-                       this.graph.push(data.USD);
-                   }
-                    // console.log(this.graph)
-                    // console.log(currentTicker.name + ' Interval = ' + this.updateInterval)
+                    if (this.sel?.name === tickerName) {
+                        this.graph.push(data.USD);
+                    }
                 }, this.updateInterval)
 
-                this.ticker = ''
+
             },
-            normolitheGraph () {
+
+            add() {
+                if (this.coinList.includes(this.ticker.toUpperCase())) {
+                    const currentTicker = {
+                        name: this.ticker,
+                        price: 0.0
+                    }
+                    this.tickers.push(currentTicker);
+                    this.subscribeToTicker(currentTicker.name)
+                    this.ticker = ''
+
+                } else {
+                    this.tickerError = true;
+                    this.tickerErrorText = 'Нет такой монеты'
+                }
+
+                localStorage.setItem('myTickers',JSON.stringify(this.tickers))
+            },
+
+            addHint(hint) {
+                if (hint) {
+                    this.ticker = hint;
+                    this.add()
+                }
+            },
+
+            modifyTicker() {
+                this.tickerError = false;
+                this.hints = this.checkInputValue(this.ticker, this.coinList);
+            },
+
+            normolitheGraph() {
                 const max = Math.max(...this.graph)
                 const min = Math.min(...this.graph)
-                return this.graph.map (
-                    price => 5 + ((price - min)*80 / (max - min))
+                return this.graph.map(
+                    price => 5 + ((price - min) * 80 / (max - min))
                 )
             },
             selectTicker(ticker) {
@@ -263,17 +269,39 @@
 
             deleteItem(tickerToDelete) {
                 this.tickers = this.tickers.filter(t => t !== tickerToDelete)
-            }
+                localStorage.setItem('myTickers',JSON.stringify(this.tickers))
+            },
 
+            async getCoinList() {
+                const response = await fetch(`https://min-api.cryptocompare.com/data/all/coinlist?summary=true`)
+                const data = await response.json();
+                const list = Object.values(data.Data)
+
+
+                this.coinList = Object.values(list).map(item => item.Symbol);
+            }
+        },
+        created() {
+            const tickersData = localStorage.getItem('myTickers');
+            if (tickersData) {
+                this.tickers = JSON.parse(tickersData);
+                this.tickers.forEach(ticker => {
+                    this.subscribeToTicker(ticker.name)
+                })
+            }
+        },
+        mounted() {
+            this.getCoinList()
         }
     };
 </script>
 <style>
     /*@import './app.css';*/
 
+
     section.top {
         display: grid;
-        grid-template-columns: 300px 220px 1fr;
+        grid-template-columns: 300px 240px 220px;
         gap: 30px;
     }
 
